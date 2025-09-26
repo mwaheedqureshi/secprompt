@@ -266,7 +266,7 @@ async function generateResponse(userInput) {
     prompt += userInput;  // No trailing <|endoftext|> here; app.py adds it before generating
 
     try {
-        const res = await fetch('https://mwq1980-secprompt-chat-test2.hf.space/run/predict', {  // Replace with your Space URL, e.g., 'https://yourusername-secprompt-chat.hf.space'
+        const res = await fetch('https://mwq1980-secprompt-chat-test2.hf.space', {  // Replace with your Space URL, e.g., 'https://yourusername-secprompt-chat.hf.space'
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ data: [prompt] })
