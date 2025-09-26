@@ -267,7 +267,7 @@ async function generateResponse(userInput, retries = 3) {
 
     for (let attempt = 1; attempt <= retries; attempt++) {
         try {
-            const res = await fetch('https://mwq1980-secprompt-chat-test2.hf.space/chat', {
+            const res = await fetch('https://mwq1980-secprompt-chat-test2.hf.space/call/predict', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ data: [prompt] })
