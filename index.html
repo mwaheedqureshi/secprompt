@@ -258,7 +258,7 @@ async function sendMessage() {
     input.value = '';
 
     try {
-        const res = await fetch('https://huggingface.co/spaces/mwq1980/secprompt-test', {
+        const res = await fetch('https://mwq1980-secprompt-test.hf.space/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ text: question })
