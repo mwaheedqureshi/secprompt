@@ -232,7 +232,7 @@
         </div>
     </footer>
 
- <script>
+<script>
 AOS.init({ duration: 800, easing: 'ease-in-out', once: true });
 feather.replace();
 
@@ -255,8 +255,8 @@ function appendMessage(text, side) {
     chatContainer.scrollTop = chatContainer.scrollHeight;
 }
 
-// Generate bot response via HF Space API
-async function generateResponse(userInput) {
+// Generate bot response via HF Space API (with retry)
+async function generateResponse(userInput, retries = 3) {
     // Build prompt: system + history (last 5 messages) + user input, separated by <|endoftext|>
     const systemPrompt = "You are an expert assistant on information security standards like ISO 27001, NIST, GDPR. Provide helpful, accurate responses.";
     let prompt = systemPrompt + '<|endoftext|>';
@@ -265,23 +265,33 @@ async function generateResponse(userInput) {
     });
     prompt += userInput;  // No trailing <|endoftext|> here; app.py adds it before generating
 
-    try {
-        const res = await fetch('https://mwq1980-secprompt-chat-test2.hf.space/run/predict', {  // Replace with your Space URL, e.g., 'https://yourusername-secprompt-chat.hf.space'
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ data: [prompt] })
-        });
-        const data = await res.json();
-        const botResponse = data.data[0] || 'No response from AI.';
-        
-        // Add to history
-        conversationHistory.push(userInput);
-        conversationHistory.push(botResponse);
-        
-        appendMessage(botResponse, 'start');
-    } catch (error) {
-        console.error('Error fetching from HF Space:', error);
-        appendMessage('Sorry, error connecting to the AI. Check your Space or try later.', 'start');
+    for (let attempt = 1; attempt <= retries; attempt++) {
+        try {
+            const res = await fetch('https://mwq1980-secprompt-chat-test2.hf.space/call/predict', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ data: [prompt] })
+            });
+            if (!res.ok) {
+                throw new Error(`HTTP error! Status: ${res.status}`);
+            }
+            const data = await res.json();
+            const botResponse = data.data[0] || 'No response from AI.';
+            
+            // Add to history
+            conversationHistory.push(userInput);
+            conversationHistory.push(botResponse);
+            
+            appendMessage(botResponse, 'start');
+            return;  // Success, exit
+        } catch (error) {
+            console.error(`Attempt ${attempt} failed:`, error.message);
+            if (attempt === retries) {
+                appendMessage('Sorry, error connecting to the AI after retries. The Space might be sleeping—try refreshing or check logs in HF.', 'start');
+            } else {
+                await new Promise(resolve => setTimeout(resolve, 5000));  // Wait 5s before retry
+            }
+        }
     }
 }
 
