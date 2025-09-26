@@ -9,6 +9,7 @@
     <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
     <script src="https://unpkg.com/feather-icons"></script>
     <script src="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2"></script>
     <style>
         .gradient-bg {
             background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
@@ -232,7 +233,7 @@
         </div>
     </footer>
 
-    <script>
+  <script>
 AOS.init({ duration: 800, easing: 'ease-in-out', once: true });
 feather.replace();
 
@@ -240,6 +241,26 @@ const chatContainer = document.querySelector('#chat-container');
 const input = document.querySelector('input[placeholder*="Type your question"]');
 const sendBtn = document.querySelector('.p-4 button'); // the send button inside the chat footer
 
+// Global variables for model
+let conversationHistory = [];  // Track chat history for context
+let model = null;  // Will hold the loaded model
+
+// Load the model when page loads (runs once)
+async function loadModel() {
+    try {
+        console.log('Loading Hugging Face model...');
+        appendMessage('Loading AI model... This may take 10-30 seconds on first visit.', 'start');  // Inform user
+        model = await Xenova.pipeline('conversational', 'microsoft/DialoGPT-small');
+        console.log('Model loaded!');
+        // Replace loading message with welcome (optional: remove the loading message if you want)
+        appendMessage('Hi! I\'m your InfoSec AI assistant powered by Hugging Face. Ask about ISO 27001, NIST, GDPR, etc.', 'start');
+    } catch (error) {
+        console.error('Error loading model:', error);
+        appendMessage('Sorry, I had trouble loading the AI model. Refresh the page?', 'start');
+    }
+}
+
+// Add a message to the chat UI (your existing function)
 function appendMessage(text, side) {
     const wrapper = document.createElement('div');
     wrapper.className = `flex justify-${side}`;
@@ -251,28 +272,67 @@ function appendMessage(text, side) {
     chatContainer.scrollTop = chatContainer.scrollHeight;
 }
 
+// Generate bot response using the model
+async function generateResponse(userInput) {
+    if (!model) {
+        appendMessage('Model still loading... Please wait.', 'start');
+        return;
+    }
+
+    // Add user input to history
+    conversationHistory.push({ role: 'user', content: userInput });
+
+    try {
+        // Optional: Add a system prompt to focus on InfoSec topics
+        const systemPrompt = "You are an expert assistant on information security standards like ISO 27001, NIST, GDPR. Provide helpful, accurate responses.";
+
+        // Create conversational input (with history for context)
+        const input = {
+            past_user_inputs: conversationHistory.map(h => h.content).slice(-5),  // Last 5 user messages
+            generated_responses: [],  // Model will fill this
+            text: systemPrompt + ' User: ' + userInput  // Prepend prompt to guide response
+        };
+
+        // Generate response
+        const output = await model(input);
+        const botResponse = output.generated_responses[0] || 'Hmm, not sure how to respond to that. Try rephrasing?';
+
+        // Add to history
+        conversationHistory.push({ role: 'assistant', content: botResponse });
+
+        appendMessage(botResponse, 'start');
+    } catch (error) {
+        console.error('Error generating response:', error);
+        appendMessage('Oops, something went wrong. Try again?', 'start');
+    }
+}
+
+// Send message function (modified to use model instead of fetch)
 async function sendMessage() {
     const question = input.value.trim();
     if (!question) return;
     appendMessage(question, 'end');
     input.value = '';
 
-    try {
-        const res = await fetch('https://mwq1980-secprompt-test.hf.space/', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: question })
-        });
-        const data = await res.json();
-        appendMessage(data.reply || 'No response', 'start');
-    } catch (err) {
-        console.error(err);
-        appendMessage('Error contacting the model.', 'start');
+    // Add temporary thinking message
+    appendMessage('Thinking...', 'start');
+
+    // Generate and add bot response (remove the 'Thinking...' after)
+    await generateResponse(question);
+
+    // Optional: Remove the 'Thinking...' message (find and remove the last child if it's 'Thinking...')
+    const messages = chatContainer.querySelectorAll('div.flex');
+    const lastMessage = messages[messages.length - 2];  // Second last (the thinking one)
+    if (lastMessage && lastMessage.innerText.includes('Thinking...')) {
+        lastMessage.remove();
     }
 }
 
 sendBtn.addEventListener('click', sendMessage);
 input.addEventListener('keypress', e => { if (e.key === 'Enter') sendMessage(); });
+
+// Start loading model on page load
+window.onload = loadModel;
 </script>
 
 </body>
